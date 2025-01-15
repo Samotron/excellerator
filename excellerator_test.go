@@ -1,0 +1,77 @@
+package main
+
+import (
+	"os"
+	"testing"
+
+	"github.com/xuri/excelize/v2"
+)
+
+func TestUpdateCells(t *testing.T) {
+	filePath := "test.xlsx"
+	inputs := []ExcelInput{
+		{Cell: "A1", Value: "Hello"},
+		{Cell: "B1", Value: 123},
+	}
+
+	// Create a new Excel file for testing
+	f := excelize.NewFile()
+	if err := f.SaveAs(filePath); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	defer os.Remove(filePath)
+
+	if err := updateCells(filePath, inputs); err != nil {
+		t.Errorf("updateCells() error = %v", err)
+	}
+
+	f, err := excelize.OpenFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to open test file: %v", err)
+	}
+
+	for _, input := range inputs {
+		value, err := f.GetCellValue("Sheet1", input.Cell)
+		if err != nil {
+			t.Errorf("GetCellValue() error = %v", err)
+		}
+		if value != input.Value {
+			t.Errorf("Expected cell %s to have value %v, but got %v", input.Cell, input.Value, value)
+		}
+	}
+}
+
+func TestRunFormulasWithPowerShell(t *testing.T) {
+	// This test is a placeholder as running PowerShell commands in tests is not ideal
+	// and may not work in all environments.
+	t.Skip("Skipping test for runFormulasWithPowerShell due to environment dependency")
+}
+
+func TestPullOutputs(t *testing.T) {
+	filePath := "test.xlsx"
+	cells := []string{"A1", "B1"}
+	expectedOutputs := []ExcelOutput{
+		{Cell: "A1", Value: "Hello"},
+		{Cell: "B1", Value: "123"},
+	}
+
+	// Create a new Excel file for testing
+	f := excelize.NewFile()
+	f.SetCellValue("Sheet1", "A1", "Hello")
+	f.SetCellValue("Sheet1", "B1", 123)
+	if err := f.SaveAs(filePath); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	defer os.Remove(filePath)
+
+	outputs, err := pullOutputs(filePath, cells)
+	if err != nil {
+		t.Errorf("pullOutputs() error = %v", err)
+	}
+
+	for i, output := range outputs {
+		if output.Cell != expectedOutputs[i].Cell || output.Value != expectedOutputs[i].Value {
+			t.Errorf("Expected output %v, but got %v", expectedOutputs[i], output)
+		}
+	}
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "inputs": {
+      "items": {
+        "properties": {
+          "Cell": {
+            "type": "string"
+          },
+          "Value": true
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "Cell",
+          "Value"
+        ]
+      },
+      "type": "array"
+    },
+    "outputs": {
+      "items": {
+        "properties": {
+          "cell": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cell",
+          "value"
+        ]
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "inputs",
+    "outputs"
+  ]
+}
