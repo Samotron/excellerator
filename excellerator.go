@@ -9,6 +9,8 @@ import (
 
 	charmLog "github.com/charmbracelet/log"
 	"github.com/xuri/excelize/v2"
+	"github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
 )
 
 type ExcelInput struct {
@@ -39,6 +41,46 @@ func runFormulasWithPowerShell(filePath string) error {
 	cmd := exec.Command("powershell", "-Command", fmt.Sprintf(`$excel = New-Object -ComObject Excel.Application; $workbook = $excel.Workbooks.Open("%s"); $excel.Visible = $true; $workbook.Save(); $workbook.Close(); $excel.Quit()`, filePath))
 	return cmd.Run()
 }
+
+func SolveExcelSheet(link string) error {
+    // Initialize COM
+    ole.CoInitialize(0)
+    defer ole.CoUninitialize()
+
+    // Connect to Excel
+    excel, err := oleutil.CreateObject("Excel.Application")
+    if err != nil {
+        return fmt.Errorf("failed to create Excel object: %w", err)
+    }
+
+    excelDispatch := excel.MustQueryInterface(ole.IID_IDispatch)
+    defer excelDispatch.Release()
+
+    // Open the workbook
+    workbooks := oleutil.MustGetProperty(excelDispatch, "Workbooks").ToIDispatch()
+    defer workbooks.Release()
+    workbook := oleutil.MustCallMethod(workbooks, "Open", link).ToIDispatch()
+    defer workbook.Release()
+
+    // Set calculation mode to automatic
+	//oleutil.PutProperty(excelDispatch, "Calculation", -4105) // xlCalculationAutomatic
+
+    // Refresh all data connections
+    oleutil.MustCallMethod(workbook, "RefreshAll")
+
+    // Recalculate workbook formulas
+    oleutil.MustCallMethod(workbook, "Calculate")
+
+    // Save and close the workbook
+    oleutil.MustCallMethod(workbook, "Save")
+    oleutil.MustCallMethod(workbook, "Close", false)
+
+    // Quit Excel
+    oleutil.MustCallMethod(excelDispatch, "Quit")
+
+    return nil
+}
+
 
 func pullOutputs(filePath string, cells []string) ([]ExcelOutput, error) {
 	f, err := excelize.OpenFile(filePath)

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"math/rand/v2"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/xuri/excelize/v2"
@@ -45,6 +49,39 @@ func TestRunFormulasWithPowerShell(t *testing.T) {
 	// This test is a placeholder as running PowerShell commands in tests is not ideal
 	// and may not work in all environments.
 	t.Skip("Skipping test for runFormulasWithPowerShell due to environment dependency")
+}
+
+func TestSolveExcelSheet(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Can't run this test on windows")
+	}
+	input := rand.IntN(100)
+	output := input + 5
+	testFile := "./testSolve.xlsx"
+	wd, _ := os.Getwd()
+	testFile = filepath.Join(wd, testFile)
+
+	inputs := make([]ExcelInput, 1)
+	inputs[0] = ExcelInput{"A1", input}
+	err := updateCells(testFile, inputs)
+	fmt.Println("Edit File")
+	if err != nil {
+		fmt.Println(err)
+		t.Fail()
+	}
+	err = SolveExcelSheet(testFile)
+	if err != nil {
+		fmt.Println(err)
+		t.Fail()
+	}
+	cells := make([]string, 1)
+	cells[0] = "B1"
+	res, err := pullOutputs(testFile, cells)
+	fmt.Println(res)
+	if res[0].Value != output {
+		t.Errorf("Result was incorrect, want %d got %s", output, res[0].Value)
+	}
+
 }
 
 func TestPullOutputs(t *testing.T) {
