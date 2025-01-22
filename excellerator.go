@@ -1,26 +1,43 @@
-package main
+package main 
 
 import (
-	"encoding/json"
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"os/exec"
 
-	charmLog "github.com/charmbracelet/log"
 	"github.com/xuri/excelize/v2"
-	"github.com/go-ole/go-ole"
-	"github.com/go-ole/go-ole/oleutil"
+	//"github.com/go-ole/go-ole"
+	//"github.com/go-ole/go-ole/oleutil"
 )
 
 type ExcelInput struct {
-	Cell  string
-	Value interface{}
+	Cell  string `json:"cell"`
+	Sheet string `json:"sheet"`
+	Value interface{} `json:"value"`
 }
 
-type ExcelOutput struct {
-	Cell  string
-	Value interface{}
+type Config struct {
+	Inputs  []ExcelInput  `json:"inputs"`
+	Outputs []ExcelInput `json:"outputs"`
+}
+
+// RunExcel updates, solves and extracts results from Excel
+// If outputs are configured, Excel input returns those values
+func RunExcel(link string, config Config) ([]ExcelInput, error) {
+	if (len(config.Inputs) > 0) {
+		err := updateCells(link, config.Inputs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if (len(config.Outputs) >0) {
+		output, err := pullOutputs(link, config.Outputs)
+		if err != nil {
+			return nil, err
+		}
+		return output, nil
+	}
+	return nil, nil
 }
 
 func updateCells(filePath string, inputs []ExcelInput) error {
@@ -29,7 +46,7 @@ func updateCells(filePath string, inputs []ExcelInput) error {
 		return err
 	}
 	for _, input := range inputs {
-		f.SetCellValue("Sheet1", input.Cell, input.Value)
+		f.SetCellValue(input.Sheet, input.Cell, input.Value)
 	}
 	if err := f.Save(); err != nil {
 		return err
@@ -43,7 +60,8 @@ func runFormulasWithPowerShell(filePath string) error {
 }
 
 func SolveExcelSheet(link string) error {
-    // Initialize COM
+	/*
+	// Initialize COM
     ole.CoInitialize(0)
     defer ole.CoUninitialize()
 
@@ -77,93 +95,27 @@ func SolveExcelSheet(link string) error {
 
     // Quit Excel
     oleutil.MustCallMethod(excelDispatch, "Quit")
+	*/
 
     return nil
 }
 
 
-func pullOutputs(filePath string, cells []string) ([]ExcelOutput, error) {
+func pullOutputs(filePath string, cells []ExcelInput) ([]ExcelInput, error) {
 	f, err := excelize.OpenFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	var outputs []ExcelOutput
+	var outputs []ExcelInput
 	for _, cell := range cells {
-		value, err := f.GetCellValue("Sheet1", cell)
+
+		value, err := f.CalcCellValue(cell.Sheet, cell.Cell)
 		if err != nil {
 			return nil, err
 		}
-		outputs = append(outputs, ExcelOutput{Cell: cell, Value: value})
+		outputs = append(outputs, ExcelInput{Cell: cell.Cell, Sheet: cell.Sheet, Value: value})
 	}
 	return outputs, nil
 }
 
-type Config struct {
-	Inputs  []ExcelInput  `json:"inputs"`
-	Outputs []ExcelOutput `json:"outputs"`
-}
 
-func main() {
-	excelFilePath := flag.String("excel", "", "Path to the Excel file")
-	configFilePath := flag.String("config", "", "Path to the JSON config file")
-	configJSON := flag.String("config-json", "", "JSON string of the config")
-	flag.Parse()
-
-	if *excelFilePath == "" {
-		fmt.Println("Usage: excellerator -excel <path to excel file> [-config <path to config file> | -config-json <config json string>]")
-		flag.PrintDefaults()
-		charmLog.Fatal("Excel file path must be provided")
-	}
-
-	var config Config
-	var configData []byte
-	var err error
-
-	if *configFilePath != "" {
-		charmLog.Info("Reading config file", "path", *configFilePath)
-		configData, err = ioutil.ReadFile(*configFilePath)
-		if err != nil {
-			charmLog.Fatalf("Failed to read config file: %v", err)
-		}
-	} else if *configJSON != "" {
-		charmLog.Info("Using config JSON string")
-		configData = []byte(*configJSON)
-	}
-
-	if configData != nil {
-		charmLog.Info("Parsing config")
-		if err := json.Unmarshal(configData, &config); err != nil {
-			charmLog.Fatalf("Failed to parse config: %v", err)
-		}
-
-		charmLog.Info("Updating cells in Excel file", "path", *excelFilePath)
-		if err := updateCells(*excelFilePath, config.Inputs); err != nil {
-			charmLog.Fatalf("Failed to update cells: %v", err)
-		}
-	}
-
-	charmLog.Info("Running formulas with PowerShell", "path", *excelFilePath)
-	if err := runFormulasWithPowerShell(*excelFilePath); err != nil {
-		charmLog.Fatalf("Failed to run formulas with PowerShell: %v", err)
-	}
-
-	if configData != nil {
-		charmLog.Info("Pulling outputs from Excel file", "path", *excelFilePath)
-		var outputCells []string
-		for _, output := range config.Outputs {
-			outputCells = append(outputCells, output.Cell)
-		}
-		outputs, err := pullOutputs(*excelFilePath, outputCells)
-		if err != nil {
-			charmLog.Fatalf("Failed to pull outputs: %v", err)
-		}
-
-		charmLog.Info("Marshalling output data to JSON")
-		outputData, err := json.MarshalIndent(outputs, "", "  ")
-		if err != nil {
-			charmLog.Fatalf("Failed to marshal outputs: %v", err)
-		}
-
-		fmt.Println(string(outputData))
-	}
-}
